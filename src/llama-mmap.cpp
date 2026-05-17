@@ -196,7 +196,18 @@ struct llama_file::impl {
 
 #ifdef __linux__
     bool init_fd() {
-        fd = open(fname.c_str(), O_RDONLY | O_DIRECT);
+        // LMPlayground: "fd:N" → dup the inherited fd (e.g. from Android SAF).
+        // Same rationale as the ggml_fopen patch in ggml/src/ggml.c.
+        if (strncmp(fname.c_str(), "fd:", 3) == 0) {
+            int original_fd = atoi(fname.c_str() + 3);
+            if (original_fd > 0) {
+                fd = dup(original_fd);
+            } else {
+                fd = -1;
+            }
+        } else {
+            fd = open(fname.c_str(), O_RDONLY | O_DIRECT);
+        }
 
         if (fd != -1) {
             struct stat file_stats{};
