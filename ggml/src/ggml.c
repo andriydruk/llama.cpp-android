@@ -624,6 +624,26 @@ FILE * ggml_fopen(const char * fname, const char * mode) {
 
     return file;
 #else
+    // LMPlayground: "fd:N" path means "use file descriptor N from this
+    // process". Required for loading models that arrive via Android SAF
+    // ParcelFileDescriptor — Scoped Storage prevents reopen via
+    // /proc/self/fd/N, but a dup() of the inherited fd works because the
+    // kernel keeps the original open-mode privilege. dup() so the FILE*
+    // owns its own fd and fclose() doesn't tear down the caller's PFD.
+    if (fname && strncmp(fname, "fd:", 3) == 0) {
+        int original_fd = atoi(fname + 3);
+        if (original_fd > 0) {
+            int fd_copy = dup(original_fd);
+            if (fd_copy < 0) {
+                return NULL;
+            }
+            FILE * file = fdopen(fd_copy, mode);
+            if (!file) {
+                close(fd_copy);
+            }
+            return file;
+        }
+    }
     return fopen(fname, mode);
 #endif
 
