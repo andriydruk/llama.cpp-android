@@ -2454,7 +2454,15 @@ void llama_vocab::impl::load(llama_model_loader & ml, const LLM_KV & kv) {
             }
         }
     }
-    GGML_ASSERT(id_to_token.size() == token_to_id.size());
+    // Duplicated token strings collapse in token_to_id, so the map ends up
+    // smaller than the token list. Such GGUFs exist in the wild (the 2026-07-15
+    // google/gemma-*-qat-q4_0 uploads carried 3 duplicates) and remain usable
+    // for inference: the duplicated string tokenizes to the highest of its ids,
+    // and every id still detokenizes to its own text. Warn instead of aborting.
+    if (id_to_token.size() != token_to_id.size()) {
+        LLAMA_LOG_WARN("%s: vocab has %zu duplicated tokens - malformed GGUF, continuing anyway\n",
+                __func__, id_to_token.size() - token_to_id.size());
+    }
 
     // hybriddna: the marker suffix kept k-mer ids distinct in token_to_id; erase
     // it from id_to_token so the k-mers detokenize to the bare DNA sequence. The
