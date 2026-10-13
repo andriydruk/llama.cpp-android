@@ -4431,6 +4431,11 @@ vk_device ggml_vk_get_device(size_t idx) {
         device->vendor_id = device->properties.vendorID;
         device->driver_id = driver_props.driverID;
 
+        if (device->driver_id == vk::DriverId::eQualcommProprietary) {
+            // vkGetDeviceFaultInfoEXT segfaults in the Adreno driver after a device loss, before vk::DeviceLostError reaches the caller
+            device->device_fault = false;
+        }
+
         device->external_memory_host = device->external_memory_host && ggml_vk_external_memory_host_usable(device->driver_id);
 
         // Implementing the async backend interfaces seems broken on older Intel HW,
