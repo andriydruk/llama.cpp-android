@@ -357,7 +357,11 @@ void * ggml_aligned_malloc(size_t size) {
     void * aligned_memory = NULL;
   #ifdef GGML_USE_CPU_HBM
     int result = hbw_posix_memalign(&aligned_memory, alignment, size);
-  #elif TARGET_OS_OSX && !defined(GGML_TSAN_ENABLED)
+  #elif defined(__APPLE__) && !defined(GGML_TSAN_ENABLED)
+    // vm_allocate on every Apple platform, not only macOS: on iOS a large
+    // posix_memalign block stays in the process footprint after free() until
+    // the kernel lazily reclaims it, so unloading a model would not lower
+    // os_proc_available_memory. vm_deallocate returns it immediately.
     GGML_UNUSED(alignment);
     kern_return_t alloc_status = vm_allocate((vm_map_t) mach_task_self(), (vm_address_t *) &aligned_memory, size, VM_FLAGS_ANYWHERE);
     int result = EFAULT;
@@ -404,7 +408,7 @@ void ggml_aligned_free(void * ptr, size_t size) {
     if (ptr != NULL) {
         hbw_free(ptr);
     }
-#elif TARGET_OS_OSX && !defined(GGML_TSAN_ENABLED)
+#elif defined(__APPLE__) && !defined(GGML_TSAN_ENABLED)
     if (ptr != NULL) {
         vm_deallocate((vm_map_t)mach_task_self(), (vm_address_t)ptr, size);
     }
